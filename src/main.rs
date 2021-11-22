@@ -2,11 +2,12 @@ extern crate ncurses;
 
 use ncurses::*;
 use std::cmp::*;
+use std::{fs, io, env};
 
 const REGULAR_PAIR: i16 = 0;
 const HIGHLIGHT_PAIR: i16 = 1;
 
-fn main()
+fn main() 
 {
     initscr();
     //noecho();
@@ -29,9 +30,12 @@ fn main()
         clear();
         getmaxyx(stdscr(), &mut max_y, &mut max_x);
 
-        for (i, file) in files.iter().enumerate() {
+        for entry in fs::read_dir(current_dir) {
+            let entry  = entry;
+            let path = entry.path();
+
             let pair = { 
-                if file_curr == i {
+                if file_curr == 0{
                     HIGHLIGHT_PAIR
                 } else {
                     REGULAR_PAIR
@@ -39,8 +43,10 @@ fn main()
             };
 
             attron(COLOR_PAIR(pair));
-            mv(i as i32, 0);
-            addstr(*file);
+            mv(0 as i32, 0);
+
+            let name  = format!("name: {}", path as &str);
+            addstr(&name as &str);
             attroff(COLOR_PAIR(pair));
         }
 
