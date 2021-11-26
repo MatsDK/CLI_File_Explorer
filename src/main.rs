@@ -11,12 +11,12 @@ const HIGHLIGHT_PAIR: i16 = 1;
 struct Entry {
     name: String,
     path: String,
-    parent_path: String,
     is_dir: bool,
 }
 
-#[derive(Default)]
 struct Ui {
+    curr_path: String,
+    parent_path: String
 }
 
 impl Ui {
@@ -24,6 +24,9 @@ impl Ui {
         mv(height - 1, 3);
         let bottom = format!("height: {} width: {}", height.to_string(), width.to_string());
         addstr(&bottom as &str);
+
+        mv(0, 0);
+        addstr(&self.curr_path);
     }
 
     fn list_item(&mut self, label: &str, color_pair: i16, row: &i32) {
@@ -34,12 +37,22 @@ impl Ui {
             addstr(label);
             attroff(COLOR_PAIR(color_pair));
     }
+
+    fn set_parent_path(&mut self) {
+        let parent = Path::new(&self.curr_path);
+
+        self.parent_path = { 
+            if parent.parent().is_none() { 
+                String::from("/") 
+            } else { 
+                format!("{}", parent.parent().unwrap().display())
+            }
+        };
+    }
 }
 
 fn get_entries(path: &str) -> Vec<Entry> {
     let mut entries: Vec<Entry> = Vec::new(); 
-
-    let parent = Path::new(path);
 
     for entry_res in read_dir(path).unwrap() {
         let entry = entry_res.unwrap();
@@ -49,22 +62,15 @@ fn get_entries(path: &str) -> Vec<Entry> {
         if !file_name.starts_with(".") {
                 let curr_path = format!("{}", entry.path().display());
 
-                let parent_path = { 
-                    if parent.parent().is_none() { 
-                        String::from("/") 
-                    } else { 
-                        format!("{}", parent.parent().unwrap().display())
-                    }
-                };
 
                 entries.push(Entry {
                     name: String::from(file_name),
                     path: curr_path,
-                    parent_path: parent_path,
                     is_dir: entry.path().is_dir()
                 });
         }
     }
+
 
     entries
 }
@@ -78,15 +84,19 @@ fn main() {
     init_pair(REGULAR_PAIR, COLOR_WHITE, COLOR_BLACK);
     init_pair(HIGHLIGHT_PAIR, COLOR_BLACK, COLOR_WHITE);
 
+    let mut ui = Ui { 
+        curr_path: String::from("/"),
+        parent_path: String::from("/"),
+    };
+
     let mut quit = false;
     let mut file_curr: usize = 0;
-    let mut curr_path = "/";
-    let mut entries: Vec<Entry> = get_entries(curr_path); 
+    let mut entries: Vec<Entry> = get_entries(&ui.curr_path); 
+    ui.set_parent_path();
 
     let mut max_x = 0;
     let mut max_y = 0;
 
-    let mut ui = Ui::default();
     while !quit {
         erase();
         getmaxyx(stdscr(), &mut max_y, &mut max_x);
@@ -114,23 +124,25 @@ fn main() {
             },
             'j' => file_curr = min(file_curr + 1, entries.len() - 1), 
             'h' => {
-                    if entries.len() != 0 {
-                        entries = get_entries(&entries[file_curr].parent_path);
-                        file_curr = 0;
-                    } else {
-                        entries = get_entries("/");
-                        file_curr = 0;
-                    }
+                    ui.curr_path = ui.parent_path.to_string();
+                    entries = get_entries(&ui.curr_path);
+                    file_curr = 0;
+
+                    ui.set_parent_path();
             },
             '\n' => if entries.len() != 0 && entries[file_curr].is_dir {
-                    curr_path = &entries[file_curr].path;
-                    entries = get_entries(curr_path);
+                    ui.curr_path = entries[file_curr].path.to_string(); 
+                    entries = get_entries(&ui.curr_path);
                     file_curr = 0;
+
+                    ui.set_parent_path();
             }
             'l' => if entries.len() != 0 && entries[file_curr].is_dir {
-                    curr_path = &entries[file_curr].path;
-                    entries = get_entries(curr_path);
+                    ui.curr_path = entries[file_curr].path.to_string(); 
+                    entries = get_entries(&ui.curr_path);
                     file_curr = 0;
+
+                    ui.set_parent_path();
             }
             ,
             _ => {}
