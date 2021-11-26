@@ -91,11 +91,12 @@ fn main() {
 
     let mut quit = false;
     let mut file_curr: usize = 0;
+    let mut top_offset: i32 = 0;
     let mut entries: Vec<Entry> = get_entries(&ui.curr_path); 
     ui.set_parent_path();
 
-    let mut max_x = 0;
-    let mut max_y = 0;
+    let mut max_x: i32 = 0;
+    let mut max_y: i32 = 0;
 
     while !quit {
         erase();
@@ -103,15 +104,17 @@ fn main() {
 
         ui.begin(&max_x, &max_y);
         for (i, entry) in entries.iter().enumerate() {
-            let pair = { 
-                if file_curr == i {
-                    HIGHLIGHT_PAIR
-                } else {
-                    REGULAR_PAIR
-                }
-            };
+            if i >= top_offset.try_into().unwrap() && (i as i32) - top_offset < max_y - 2 {
+                let pair = { 
+                    if file_curr == i {
+                        HIGHLIGHT_PAIR
+                    } else {
+                        REGULAR_PAIR
+                    }
+                };
 
-            ui.list_item(&entry.name, pair, &(i as i32));
+                ui.list_item(&entry.name, pair, &((i as i32) - top_offset));
+            }
         }
 
         mv(max_y - 1, 0);
@@ -119,13 +122,27 @@ fn main() {
 
         match getch() as u8 as char {
             'q' => quit = true,
-            'k' => if file_curr > 0 {
+            'k' => {
+                if file_curr > 0 {
                     file_curr -= 1
+                }
+
+                if 0 > (file_curr as i32) - top_offset {
+                    top_offset -= 1; 
+                }
             },
-            'j' => file_curr = min(file_curr + 1, entries.len() - 1), 
+            'j' => {
+                file_curr = min(file_curr + 1, entries.len() - 1);
+
+                let x: i32 = max_y -3  + top_offset; 
+                if (file_curr as i32) > x.try_into().unwrap() {
+                    top_offset += 1; 
+                }
+            }, 
             'h' => {
                     ui.curr_path = ui.parent_path.to_string();
                     entries = get_entries(&ui.curr_path);
+                    top_offset = 0;
                     file_curr = 0;
 
                     ui.set_parent_path();
@@ -133,6 +150,7 @@ fn main() {
             '\n' => if entries.len() != 0 && entries[file_curr].is_dir {
                     ui.curr_path = entries[file_curr].path.to_string(); 
                     entries = get_entries(&ui.curr_path);
+                    top_offset = 0;
                     file_curr = 0;
 
                     ui.set_parent_path();
@@ -140,6 +158,7 @@ fn main() {
             'l' => if entries.len() != 0 && entries[file_curr].is_dir {
                     ui.curr_path = entries[file_curr].path.to_string(); 
                     entries = get_entries(&ui.curr_path);
+                    top_offset = 0;
                     file_curr = 0;
 
                     ui.set_parent_path();
