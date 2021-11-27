@@ -8,22 +8,62 @@ use std::path::Path;
 const REGULAR_PAIR: i16 = 0;
 const HIGHLIGHT_PAIR: i16 = 1;
 
+enum CommandType {
+    NewFile,
+    None,
+}
+
 struct Entry {
     name: String,
     path: String,
     is_dir: bool,
 }
 
+struct Input {
+    value: String,
+}
+
+impl Input {
+    fn handle_input (&mut self, cmd: &CommandType, c: &i32) {
+        match cmd {
+            CommandType::NewFile => {
+                match c {
+                    127 => if self.value.len() != 0 { // BACKSPACE
+                        self.value.remove(self.value.len() - 1);
+                    }, 
+                    32..=126 => {
+                        self.value.push(*c as u8 as char);
+                    },
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
+    }
+
+}
+
 struct Ui {
     curr_path: String,
-    parent_path: String
+    parent_path: String,
+    command: CommandType,
+    input: Input
 }
 
 impl Ui {
     fn begin(&mut self, width: &i32, height: &i32) {
         mv(height - 1, 3);
-        let bottom = format!("height: {} width: {}", height.to_string(), width.to_string());
-        addstr(&bottom as &str);
+
+        match self.command {
+            CommandType::NewFile => {
+                let str = format!("New file name: {}", self.input.value);
+                addstr(&str as &str);
+            },
+            CommandType::None => {
+                let bottom = format!("height: {} width: {}", height.to_string(), width.to_string());
+                addstr(&bottom as &str);
+            }
+        }
 
         mv(0, 0);
         addstr(&self.curr_path);
@@ -33,7 +73,7 @@ impl Ui {
             attron(COLOR_PAIR(color_pair));
             let idx = row + 1;
 
-            mv(idx as i32, 0);
+            mv(idx as i32, 1);
             addstr(label);
             attroff(COLOR_PAIR(color_pair));
     }
@@ -49,6 +89,31 @@ impl Ui {
             }
         };
     }
+}
+
+fn list_up(file_curr: &mut usize, top_offset: &mut i32) {
+        if *file_curr > 0 {
+            *file_curr -= 1
+        }
+
+        if 0 > (*file_curr as i32) - *top_offset {
+            *top_offset -= 1; 
+        }
+}
+
+fn list_down(file_curr: &mut usize, top_offset: &mut i32, max_y: &i32, entries: &Vec<Entry>) {
+        *file_curr = min(*file_curr + 1, entries.len() - 1);
+
+        let x: i32 = max_y - 3 + *top_offset; 
+        if (*file_curr as i32) > x.try_into().unwrap() {
+            *top_offset += 1; 
+        }
+}
+
+fn move_back(ui: &Ui, entries: &mut Vec<Entry>, top_offset: &mut i32, file_curr: &mut usize) {
+        *entries = get_entries(&ui.parent_path.to_string());
+        *top_offset = 0;
+        *file_curr = 0;
 }
 
 fn get_entries(path: &str) -> Vec<Entry> {
@@ -78,7 +143,8 @@ fn get_entries(path: &str) -> Vec<Entry> {
 
 fn main() {
     initscr();
-    //noecho();
+    noecho();
+    curs_set(CURSOR_VISIBILITY::CURSOR_INVISIBLE);
 
     start_color();
     init_pair(REGULAR_PAIR, COLOR_WHITE, COLOR_BLACK);
@@ -87,6 +153,10 @@ fn main() {
     let mut ui = Ui { 
         curr_path: String::from("/"),
         parent_path: String::from("/"),
+        command: CommandType::None,
+        input: Input {
+            value: String::from(""),
+        }
     };
 
     let mut quit = false;
@@ -113,59 +183,52 @@ fn main() {
                     }
                 };
 
-                ui.list_item(&entry.name, pair, &((i as i32) - top_offset));
+                let label = format!("{} {}", { if entry.is_dir { "d" } else { "f" } } , &entry.name);
+                ui.list_item(&label, pair, &((i as i32) - top_offset));
             }
         }
 
         mv(max_y - 1, 0);
         refresh();
 
-        match getch() as u8 as char {
-            'q' => quit = true,
-            'k' => {
-                if file_curr > 0 {
-                    file_curr -= 1
-                }
+        let c = getch();
+        if c == 27 { // ESC
+            ui.command = CommandType::None;
+        }
 
-                if 0 > (file_curr as i32) - top_offset {
-                    top_offset -= 1; 
+        match ui.command {
+            CommandType::None => {
+                match c as u8 as char {
+                    'q' => quit = true,
+                    'k' => list_up(&mut file_curr, &mut top_offset),
+                    'j' => list_down(&mut file_curr, &mut top_offset, &max_y, &entries),
+                    'h' => {
+                            move_back(&ui, &mut entries, &mut top_offset, &mut file_curr);
+                            ui.curr_path = ui.parent_path.to_string();
+                            ui.set_parent_path();
+                    },
+                    '\n' => if entries.len() != 0 && entries[file_curr].is_dir {
+                            ui.curr_path = entries[file_curr].path.to_string(); 
+                            entries = get_entries(&ui.curr_path);
+                            top_offset = 0;
+                            file_curr = 0;
+
+                            ui.set_parent_path();
+                    }
+                    'l' => if entries.len() != 0 && entries[file_curr].is_dir {
+                            ui.curr_path = entries[file_curr].path.to_string(); 
+                            entries = get_entries(&ui.curr_path);
+                            top_offset = 0;
+                            file_curr = 0;
+
+                            ui.set_parent_path();
+                    },
+                    'o' => ui.command = CommandType::NewFile,
+                    _ => {}
+
                 }
             },
-            'j' => {
-                file_curr = min(file_curr + 1, entries.len() - 1);
-
-                let x: i32 = max_y -3  + top_offset; 
-                if (file_curr as i32) > x.try_into().unwrap() {
-                    top_offset += 1; 
-                }
-            }, 
-            'h' => {
-                    ui.curr_path = ui.parent_path.to_string();
-                    entries = get_entries(&ui.curr_path);
-                    top_offset = 0;
-                    file_curr = 0;
-
-                    ui.set_parent_path();
-            },
-            '\n' => if entries.len() != 0 && entries[file_curr].is_dir {
-                    ui.curr_path = entries[file_curr].path.to_string(); 
-                    entries = get_entries(&ui.curr_path);
-                    top_offset = 0;
-                    file_curr = 0;
-
-                    ui.set_parent_path();
-            }
-            'l' => if entries.len() != 0 && entries[file_curr].is_dir {
-                    ui.curr_path = entries[file_curr].path.to_string(); 
-                    entries = get_entries(&ui.curr_path);
-                    top_offset = 0;
-                    file_curr = 0;
-
-                    ui.set_parent_path();
-            }
-            ,
-            _ => {}
-
+            _ => ui.input.handle_input(&ui.command, &c) 
         }
     }
 
