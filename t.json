@@ -1,0 +1,23 @@
+{
+	"root": [
+		{
+			"name": "home",
+			"type": "dir",
+			"permissions": {},
+			"_links": {
+				"_local": [],
+				"_remote": []
+			},
+			"_children": [
+				{
+					"name": "file.txt",
+					"type": "file",
+					"permissions": {}
+				}
+			]
+		}
+	],
+	"network": {
+		"192.168.0.228": {}
+	}
+}

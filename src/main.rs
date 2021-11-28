@@ -2,7 +2,7 @@ extern crate ncurses;
 
 use ncurses::*;
 use std::cmp::*;
-use std::fs::{read_dir};
+use std::fs::{read_dir, create_dir};
 use std::path::Path;
 
 const REGULAR_PAIR: i16 = 0;
@@ -10,6 +10,7 @@ const HIGHLIGHT_PAIR: i16 = 1;
 
 enum CommandType {
     NewFile,
+    NewDir,
     None,
 }
 
@@ -21,26 +22,45 @@ struct Entry {
 
 struct Input {
     value: String,
+    cursor: i32,
 }
 
 impl Input {
-    fn handle_input (&mut self, cmd: &CommandType, c: &i32) {
-        match cmd {
-            CommandType::NewFile => {
-                match c {
-                    127 => if self.value.len() != 0 { // BACKSPACE
-                        self.value.remove(self.value.len() - 1);
-                    }, 
-                    32..=126 => {
-                        self.value.push(*c as u8 as char);
+    fn handle_input(&mut self, cmd: &mut CommandType, c: &i32, curr_path: &str, entries: &mut Vec<Entry>) {
+        match c {
+            127 => if self.value.len() != 0 { // BACKSPACE
+                self.value.remove(self.value.len() - 1);
+                self.cursor -= 1;
+            }, 
+            32..=126 => {
+                self.value.push(*c as u8 as char);
+                self.cursor += 1;
+            },
+            10 => { // ENTER
+                match cmd {
+                    CommandType::NewFile => {
+                        //println!("Create File: {}", self.value);
+                    },
+                    CommandType::NewDir => {
+                        let path = { if curr_path == "/" { format!("/{}", self.value) } else { format!("{}/{}", curr_path, self.value) }  };
+
+                        create_dir(&path).unwrap();
+                        entries.insert(0, Entry {
+                            name: self.value.clone(),
+                            path,
+                            is_dir: true
+                        });
                     },
                     _ => {}
                 }
+
+                self.value = String::from("");
+                self.cursor = 0;
+                *cmd = CommandType::None;
             },
             _ => {}
         }
     }
-
 }
 
 struct Ui {
@@ -58,6 +78,22 @@ impl Ui {
             CommandType::NewFile => {
                 let str = format!("New file name: {}", self.input.value);
                 addstr(&str as &str);
+
+                let cursor = self.input.cursor as usize;
+                mv(height - 1, 18 + self.input.cursor);
+                attron(COLOR_PAIR(HIGHLIGHT_PAIR));
+                addstr(self.input.value.get(cursor..=cursor).unwrap_or(" "));
+                attroff(COLOR_PAIR(HIGHLIGHT_PAIR));
+            },
+            CommandType::NewDir => {
+                let str = format!("New folder name: {}", self.input.value);
+                addstr(&str as &str);
+
+                let cursor = self.input.cursor as usize;
+                mv(height - 1, 20 + self.input.cursor);
+                attron(COLOR_PAIR(HIGHLIGHT_PAIR));
+                addstr(self.input.value.get(cursor..=cursor).unwrap_or(" "));
+                attroff(COLOR_PAIR(HIGHLIGHT_PAIR));
             },
             CommandType::None => {
                 let bottom = format!("height: {} width: {}", height.to_string(), width.to_string());
@@ -155,6 +191,7 @@ fn main() {
         parent_path: String::from("/"),
         command: CommandType::None,
         input: Input {
+            cursor: 0,
             value: String::from(""),
         }
     };
@@ -200,6 +237,8 @@ fn main() {
             CommandType::None => {
                 match c as u8 as char {
                     'q' => quit = true,
+                    'o' => ui.command = CommandType::NewFile,
+                    'O' => ui.command = CommandType::NewDir,
                     'k' => list_up(&mut file_curr, &mut top_offset),
                     'j' => list_down(&mut file_curr, &mut top_offset, &max_y, &entries),
                     'h' => {
@@ -223,14 +262,14 @@ fn main() {
 
                             ui.set_parent_path();
                     },
-                    'o' => ui.command = CommandType::NewFile,
                     _ => {}
 
                 }
             },
-            _ => ui.input.handle_input(&ui.command, &c) 
+            _ => ui.input.handle_input(&mut ui.command, &c, &ui.curr_path, &mut entries) 
         }
     }
 
     endwin();
 }
+
