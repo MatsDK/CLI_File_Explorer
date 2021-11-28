@@ -14,3 +14,5 @@ $ cargo run
 |---|---|
 |<kbd>j</kbd>, <kbd>k</kbd>|Move cursor up and down|
 |<kbd>h</kbd>, <kbd>l</kbd>|Go to folder, Go back|
+|<kbd>o</kbd>|Create file|
+|<kbd>O</kbd>|Create folder|
