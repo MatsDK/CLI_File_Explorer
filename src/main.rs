@@ -2,7 +2,7 @@ extern crate ncurses;
 
 use ncurses::*;
 use std::cmp::*;
-use std::fs::{read_dir, create_dir};
+use std::fs::{read_dir, create_dir, File};
 use std::path::Path;
 
 const REGULAR_PAIR: i16 = 0;
@@ -39,17 +39,42 @@ impl Input {
             10 => { // ENTER
                 match cmd {
                     CommandType::NewFile => {
-                        //println!("Create File: {}", self.value);
-                    },
-                    CommandType::NewDir => {
-                        let path = { if curr_path == "/" { format!("/{}", self.value) } else { format!("{}/{}", curr_path, self.value) }  };
+                        let path = { 
+                            if curr_path == "/" { 
+                                format!("/{}", self.value) 
+                            } else { 
+                                format!("{}/{}", curr_path, self.value) 
+                            }  
+                        };
 
-                        create_dir(&path).unwrap();
+                        File::create(&path).unwrap();
                         entries.insert(0, Entry {
                             name: self.value.clone(),
                             path,
-                            is_dir: true
+                            is_dir: false
                         });
+                    },
+                    CommandType::NewDir => {
+                        let path = { 
+                            if curr_path == "/" { 
+                                format!("/{}", self.value) 
+                            } else { 
+                                format!("{}/{}", curr_path, self.value) 
+                            }  
+                        };
+
+                        match create_dir(&path) {
+                            Ok(_) => {
+                                entries.insert(0, Entry {
+                                    name: self.value.clone(),
+                                    path,
+                                    is_dir: true
+                                });
+                            },
+                            Err(_) => {
+                                //println!("{}", error);
+                            }
+                        }
                     },
                     _ => {}
                 }
@@ -198,6 +223,7 @@ fn main() {
 
     let mut quit = false;
     let mut file_curr: usize = 0;
+    let mut select_start: Option<i32> = None;
     let mut top_offset: i32 = 0;
     let mut entries: Vec<Entry> = get_entries(&ui.curr_path); 
     ui.set_parent_path();
@@ -212,13 +238,19 @@ fn main() {
         ui.begin(&max_x, &max_y);
         for (i, entry) in entries.iter().enumerate() {
             if i >= top_offset.try_into().unwrap() && (i as i32) - top_offset < max_y - 2 {
-                let pair = { 
+                let mut pair = { 
                     if file_curr == i {
                         HIGHLIGHT_PAIR
                     } else {
                         REGULAR_PAIR
                     }
                 };
+
+                if !select_start.is_none() &&  
+                     ((select_start.unwrap() <= i as i32 &&  file_curr as i32 >= i as i32) ||
+                        (select_start.unwrap() >= i as i32 &&  file_curr as i32 <= i as i32)) {
+                        pair = HIGHLIGHT_PAIR;
+                }
 
                 let label = format!("{} {}", { if entry.is_dir { "d" } else { "f" } } , &entry.name);
                 ui.list_item(&label, pair, &((i as i32) - top_offset));
@@ -231,6 +263,7 @@ fn main() {
         let c = getch();
         if c == 27 { // ESC
             ui.command = CommandType::None;
+            select_start = None;
         }
 
         match ui.command {
@@ -241,16 +274,19 @@ fn main() {
                     'O' => ui.command = CommandType::NewDir,
                     'k' => list_up(&mut file_curr, &mut top_offset),
                     'j' => list_down(&mut file_curr, &mut top_offset, &max_y, &entries),
+                    'v' => select_start = Some(file_curr as i32),
                     'h' => {
                             move_back(&ui, &mut entries, &mut top_offset, &mut file_curr);
                             ui.curr_path = ui.parent_path.to_string();
                             ui.set_parent_path();
+                            select_start = None;
                     },
                     '\n' => if entries.len() != 0 && entries[file_curr].is_dir {
                             ui.curr_path = entries[file_curr].path.to_string(); 
                             entries = get_entries(&ui.curr_path);
                             top_offset = 0;
                             file_curr = 0;
+                            select_start = None; 
 
                             ui.set_parent_path();
                     }
@@ -259,6 +295,7 @@ fn main() {
                             entries = get_entries(&ui.curr_path);
                             top_offset = 0;
                             file_curr = 0;
+                            select_start = None;
 
                             ui.set_parent_path();
                     },
