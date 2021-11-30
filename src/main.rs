@@ -11,6 +11,8 @@ const HIGHLIGHT_PAIR: i16 = 1;
 enum CommandType {
     NewFile,
     NewDir,
+    Delete,
+    Error(String),
     None,
 }
 
@@ -27,6 +29,15 @@ struct Input {
 
 impl Input {
     fn handle_input(&mut self, cmd: &mut CommandType, c: &i32, curr_path: &str, entries: &mut Vec<Entry>) {
+        match *cmd {
+            CommandType::Error(_) => {
+                *cmd = CommandType::None;
+                self.value = String::from("");
+                self.cursor = 0;
+            },
+            _ => {}
+        }
+
         match c {
             127 => if self.value.len() != 0 { // BACKSPACE
                 self.value.remove(self.value.len() - 1);
@@ -47,12 +58,22 @@ impl Input {
                             }  
                         };
 
-                        File::create(&path).unwrap();
-                        entries.insert(0, Entry {
-                            name: self.value.clone(),
-                            path,
-                            is_dir: false
-                        });
+                        let _path = Path::new(&path);
+                        if _path.exists() && !_path.is_dir() {
+                            *cmd = CommandType::Error(String::from("File already exists"));
+                        } else {
+                            match File::create(&path) {
+                                Ok(_) => {
+                                    entries.insert(0, Entry {
+                                        name: self.value.clone(),
+                                        path,
+                                        is_dir: false
+                                    });
+                                    *cmd = CommandType::None;
+                                },
+                                Err(err) => *cmd = CommandType::Error(err.to_string())
+                            }
+                        }
                     },
                     CommandType::NewDir => {
                         let path = { 
@@ -70,10 +91,9 @@ impl Input {
                                     path,
                                     is_dir: true
                                 });
+                                *cmd = CommandType::None;
                             },
-                            Err(_) => {
-                                //println!("{}", error);
-                            }
+                            Err(err) => *cmd = CommandType::Error(err.to_string())
                         }
                     },
                     _ => {}
@@ -81,7 +101,6 @@ impl Input {
 
                 self.value = String::from("");
                 self.cursor = 0;
-                *cmd = CommandType::None;
             },
             _ => {}
         }
@@ -99,7 +118,7 @@ impl Ui {
     fn begin(&mut self, width: &i32, height: &i32) {
         mv(height - 1, 3);
 
-        match self.command {
+        match &self.command {
             CommandType::NewFile => {
                 let str = format!("New file name: {}", self.input.value);
                 addstr(&str as &str);
@@ -119,6 +138,12 @@ impl Ui {
                 attron(COLOR_PAIR(HIGHLIGHT_PAIR));
                 addstr(self.input.value.get(cursor..=cursor).unwrap_or(" "));
                 attroff(COLOR_PAIR(HIGHLIGHT_PAIR));
+            },
+            CommandType::Delete => {
+                addstr("Press enter to delete");
+            },
+            CommandType::Error(err) => {
+                addstr(&err);
             },
             CommandType::None => {
                 let bottom = format!("height: {} width: {}", height.to_string(), width.to_string());
@@ -270,6 +295,7 @@ fn main() {
             CommandType::None => {
                 match c as u8 as char {
                     'q' => quit = true,
+                    'd' => ui.command = CommandType::Delete,
                     'o' => ui.command = CommandType::NewFile,
                     'O' => ui.command = CommandType::NewDir,
                     'k' => list_up(&mut file_curr, &mut top_offset),
