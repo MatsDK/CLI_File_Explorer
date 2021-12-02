@@ -2,7 +2,7 @@ extern crate ncurses;
 
 use ncurses::*;
 use std::cmp::*;
-use std::fs::{read_dir, create_dir, File};
+use std::fs::*;
 use std::path::Path;
 
 const REGULAR_PAIR: i16 = 0;
@@ -22,96 +22,12 @@ struct Entry {
     is_dir: bool,
 }
 
-struct Input {
-    value: String,
-    cursor: i32,
-}
-
-impl Input {
-    fn handle_input(&mut self, cmd: &mut CommandType, c: &i32, curr_path: &str, entries: &mut Vec<Entry>) {
-        match *cmd {
-            CommandType::Error(_) => {
-                *cmd = CommandType::None;
-                self.value = String::from("");
-                self.cursor = 0;
-            },
-            _ => {}
-        }
-
-        match c {
-            127 => if self.value.len() != 0 { // BACKSPACE
-                self.value.remove(self.value.len() - 1);
-                self.cursor -= 1;
-            }, 
-            32..=126 => {
-                self.value.push(*c as u8 as char);
-                self.cursor += 1;
-            },
-            10 => { // ENTER
-                match cmd {
-                    CommandType::NewFile => {
-                        let path = { 
-                            if curr_path == "/" { 
-                                format!("/{}", self.value) 
-                            } else { 
-                                format!("{}/{}", curr_path, self.value) 
-                            }  
-                        };
-
-                        let _path = Path::new(&path);
-                        if _path.exists() && !_path.is_dir() {
-                            *cmd = CommandType::Error(String::from("File already exists"));
-                        } else {
-                            match File::create(&path) {
-                                Ok(_) => {
-                                    entries.insert(0, Entry {
-                                        name: self.value.clone(),
-                                        path,
-                                        is_dir: false
-                                    });
-                                    *cmd = CommandType::None;
-                                },
-                                Err(err) => *cmd = CommandType::Error(err.to_string())
-                            }
-                        }
-                    },
-                    CommandType::NewDir => {
-                        let path = { 
-                            if curr_path == "/" { 
-                                format!("/{}", self.value) 
-                            } else { 
-                                format!("{}/{}", curr_path, self.value) 
-                            }  
-                        };
-
-                        match create_dir(&path) {
-                            Ok(_) => {
-                                entries.insert(0, Entry {
-                                    name: self.value.clone(),
-                                    path,
-                                    is_dir: true
-                                });
-                                *cmd = CommandType::None;
-                            },
-                            Err(err) => *cmd = CommandType::Error(err.to_string())
-                        }
-                    },
-                    _ => {}
-                }
-
-                self.value = String::from("");
-                self.cursor = 0;
-            },
-            _ => {}
-        }
-    }
-}
-
 struct Ui {
     curr_path: String,
     parent_path: String,
     command: CommandType,
-    input: Input
+    input_value: String,
+    input_cursor: i32,
 }
 
 impl Ui {
@@ -120,23 +36,23 @@ impl Ui {
 
         match &self.command {
             CommandType::NewFile => {
-                let str = format!("New file name: {}", self.input.value);
+                let str = format!("New file name: {}", self.input_value);
                 addstr(&str as &str);
 
-                let cursor = self.input.cursor as usize;
-                mv(height - 1, 18 + self.input.cursor);
+                let cursor = self.input_cursor as usize;
+                mv(height - 1, 18 + self.input_cursor);
                 attron(COLOR_PAIR(HIGHLIGHT_PAIR));
-                addstr(self.input.value.get(cursor..=cursor).unwrap_or(" "));
+                addstr(self.input_value.get(cursor..=cursor).unwrap_or(" "));
                 attroff(COLOR_PAIR(HIGHLIGHT_PAIR));
             },
             CommandType::NewDir => {
-                let str = format!("New folder name: {}", self.input.value);
+                let str = format!("New folder name: {}", self.input_value);
                 addstr(&str as &str);
 
-                let cursor = self.input.cursor as usize;
-                mv(height - 1, 20 + self.input.cursor);
+                let cursor = self.input_cursor as usize;
+                mv(height - 1, 20 + self.input_cursor);
                 attron(COLOR_PAIR(HIGHLIGHT_PAIR));
-                addstr(self.input.value.get(cursor..=cursor).unwrap_or(" "));
+                addstr(self.input_value.get(cursor..=cursor).unwrap_or(" "));
                 attroff(COLOR_PAIR(HIGHLIGHT_PAIR));
             },
             CommandType::Delete => {
@@ -174,6 +90,115 @@ impl Ui {
                 format!("{}", parent.parent().unwrap().display())
             }
         };
+    }
+
+    fn handle_input(&mut self, c: &i32, entries: &mut Vec<Entry>, file_curr: &usize, start_select: &Option<i32>) {
+        match self.command {
+            CommandType::Error(_) => {
+                self.command = CommandType::None;
+                self.input_value = String::from("");
+                self.input_cursor = 0;
+            },
+            _ => {}
+        }
+
+        match c {
+            127 => if self.input_value.len() != 0 { // BACKSPACE
+                self.input_value.remove(self.input_value.len() - 1);
+                self.input_cursor -= 1;
+            }, 
+            32..=126 => {
+                self.input_value.push(*c as u8 as char);
+                self.input_cursor += 1;
+            },
+            10 => { // ENTER
+                match self.command {
+                    CommandType::NewFile => {
+                        let path = { 
+                            if self.curr_path == "/" { 
+                                format!("/{}", self.input_value) 
+                            } else { 
+                                format!("{}/{}", self.curr_path, self.input_value) 
+                            }  
+                        };
+
+                        let _path = Path::new(&path);
+                        if _path.exists() && !_path.is_dir() {
+                            self.command = CommandType::Error(String::from("File already exists"));
+                        } else {
+                            match File::create(&path) {
+                                Ok(_) => {
+                                    entries.insert(0, Entry {
+                                        name: self.input_value.clone(),
+                                        path,
+                                        is_dir: false
+                                    });
+                                    self.command = CommandType::None;
+                                },
+                                Err(err) => self.command = CommandType::Error(err.to_string())
+                            }
+                        }
+                    },
+                    CommandType::NewDir => {
+                        let path = { 
+                            if self.curr_path == "/" { 
+                                format!("/{}", self.input_value) 
+                            } else { 
+                                format!("{}/{}", self.curr_path, self.input_value) 
+                            }  
+                        };
+
+                        match create_dir(&path) {
+                            Ok(_) => {
+                                entries.insert(0, Entry {
+                                    name: self.input_value.clone(),
+                                    path,
+                                    is_dir: true
+                                });
+                                self.command = CommandType::None;
+                            },
+                            Err(err) => self.command = CommandType::Error(err.to_string())
+                        }
+                    },
+                    CommandType::Delete => {
+                        fn delete_entry(entry: &Entry, command: &mut CommandType) {
+                            if entry.is_dir {
+                                match remove_dir_all(&entry.path) {
+                                    Ok(_) => {
+                                    },
+                                    Err(err) => *command = CommandType::Error(err.to_string())
+                                }
+                            } else {
+                                match remove_file(&entry.path) {
+                                    Ok(_) => {
+                                    },
+                                    Err(err) => *command = CommandType::Error(err.to_string())
+                                }
+                            }
+                        }
+
+                        match *start_select {
+                            None => delete_entry(&entries[*file_curr], &mut self.command),
+                            start => {
+                                let diff: i32 = start.unwrap() - *file_curr as i32; 
+                                for i in 0..=diff.abs() {
+                                    let idx: i32 = i + min(start.unwrap(), *file_curr as i32);
+                                    delete_entry(&entries[idx as usize], &mut self.command);
+                                }
+                            }
+                        }
+
+                        self.command = CommandType::None;
+
+                    },
+                    _ => {}
+                }
+
+                self.input_value = String::from("");
+                self.input_cursor = 0;
+            },
+            _ => {}
+        }
     }
 }
 
@@ -240,10 +265,8 @@ fn main() {
         curr_path: String::from("/"),
         parent_path: String::from("/"),
         command: CommandType::None,
-        input: Input {
-            cursor: 0,
-            value: String::from(""),
-        }
+        input_cursor: 0,
+        input_value: String::from(""),
     };
 
     let mut quit = false;
@@ -329,7 +352,7 @@ fn main() {
 
                 }
             },
-            _ => ui.input.handle_input(&mut ui.command, &c, &ui.curr_path, &mut entries) 
+            _ => ui.handle_input(&c, &mut entries, &file_curr, &select_start) 
         }
     }
 
