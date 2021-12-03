@@ -5,6 +5,8 @@ use std::cmp::*;
 use std::fs::*;
 use std::path::Path;
 
+mod tree;
+
 const REGULAR_PAIR: i16 = 0;
 const HIGHLIGHT_PAIR: i16 = 1;
 
@@ -28,6 +30,7 @@ struct Ui {
     command: CommandType,
     input_value: String,
     input_cursor: i32,
+    tree: tree::Tree,
 }
 
 impl Ui {
@@ -203,22 +206,24 @@ impl Ui {
 }
 
 fn list_up(file_curr: &mut usize, top_offset: &mut i32) {
-        if *file_curr > 0 {
-            *file_curr -= 1
-        }
+    if *file_curr > 0 {
+        *file_curr -= 1
+    }
 
-        if 0 > (*file_curr as i32) - *top_offset {
-            *top_offset -= 1; 
-        }
+    if 0 > (*file_curr as i32) - *top_offset {
+        *top_offset -= 1; 
+    }
 }
 
 fn list_down(file_curr: &mut usize, top_offset: &mut i32, max_y: &i32, entries: &Vec<Entry>) {
+    if entries.len() > 0 {
         *file_curr = min(*file_curr + 1, entries.len() - 1);
 
         let x: i32 = max_y - 3 + *top_offset; 
         if (*file_curr as i32) > x.try_into().unwrap() {
             *top_offset += 1; 
         }
+    }
 }
 
 fn move_back(ui: &Ui, entries: &mut Vec<Entry>, top_offset: &mut i32, file_curr: &mut usize) {
@@ -267,6 +272,7 @@ fn main() {
         command: CommandType::None,
         input_cursor: 0,
         input_value: String::from(""),
+        tree: tree::parse_tree()
     };
 
     let mut quit = false;
@@ -278,6 +284,7 @@ fn main() {
 
     let mut max_x: i32 = 0;
     let mut max_y: i32 = 0;
+
 
     while !quit {
         erase();
@@ -318,7 +325,7 @@ fn main() {
             CommandType::None => {
                 match c as u8 as char {
                     'q' => quit = true,
-                    'd' => ui.command = CommandType::Delete,
+                    'd' => if entries.len() != 0 { ui.command = CommandType::Delete },
                     'o' => ui.command = CommandType::NewFile,
                     'O' => ui.command = CommandType::NewDir,
                     'k' => list_up(&mut file_curr, &mut top_offset),

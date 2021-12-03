@@ -1,25 +1,18 @@
+
 {
 	"root": [
 		{
 			"name": "home",
 			"path": "/home",
 			"type": "dir",
-			"permissions": {},
-			"_links": {
-				"_local": [],
-				"_remote": []
-			},
 			"_children": [
 				{
 					"name": "file.txt",
 					"path": "/home/file.txt",
 					"type": "file",
-					"permissions": {}
+					"_children": []
 				}
 			]
 		}
-	],
-	"network": {
-		"192.168.0.227": {}
-	}
+	]
 }
