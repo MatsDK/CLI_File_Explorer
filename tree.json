@@ -2,6 +2,12 @@
 {
 	"root": [
 		{
+			"name": "file21.txt",
+			"path": "/file21.txt",
+			"type": "file",
+			"_children": []
+		},
+		{
 			"name": "home",
 			"path": "/home",
 			"type": "dir",

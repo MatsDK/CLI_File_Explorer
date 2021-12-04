@@ -18,12 +18,6 @@ enum CommandType {
     None,
 }
 
-struct Entry {
-    name: String,
-    path: String,
-    is_dir: bool,
-}
-
 struct Ui {
     curr_path: String,
     parent_path: String,
@@ -95,7 +89,7 @@ impl Ui {
         };
     }
 
-    fn handle_input(&mut self, c: &i32, entries: &mut Vec<Entry>, file_curr: &usize, start_select: &Option<i32>) {
+    fn handle_input(&mut self, c: &i32, entries: &mut Vec<tree::Entry>, file_curr: &usize, start_select: &Option<i32>) {
         match self.command {
             CommandType::Error(_) => {
                 self.command = CommandType::None;
@@ -131,10 +125,12 @@ impl Ui {
                         } else {
                             match File::create(&path) {
                                 Ok(_) => {
-                                    entries.insert(0, Entry {
+                                    entries.insert(0, tree::Entry {
                                         name: self.input_value.clone(),
                                         path,
-                                        is_dir: false
+                                        r#type: String::from("file"),
+                                        _children: Vec::new()
+                                        
                                     });
                                     self.command = CommandType::None;
                                 },
@@ -153,10 +149,11 @@ impl Ui {
 
                         match create_dir(&path) {
                             Ok(_) => {
-                                entries.insert(0, Entry {
+                                entries.insert(0, tree::Entry {
                                     name: self.input_value.clone(),
                                     path,
-                                    is_dir: true
+                                    r#type: String::from("dir"),
+                                    _children: Vec::new()
                                 });
                                 self.command = CommandType::None;
                             },
@@ -164,8 +161,8 @@ impl Ui {
                         }
                     },
                     CommandType::Delete => {
-                        fn delete_entry(entry: &Entry, command: &mut CommandType) {
-                            if entry.is_dir {
+                        fn delete_entry(entry: &tree::Entry, command: &mut CommandType) {
+                            if &entry.r#type == "dir" {
                                 match remove_dir_all(&entry.path) {
                                     Ok(_) => {
                                     },
@@ -203,6 +200,19 @@ impl Ui {
             _ => {}
         }
     }
+
+    fn set_entries(&mut self, entries: &mut Vec<tree::Entry>) {
+        *entries = vec![];
+
+        for e in self.tree.root.iter() {
+            entries.push(tree::Entry{
+                name: (*e.name).to_string(),
+                path: (*e.path).to_string(),
+                r#type: (*e.r#type).to_string(),
+                _children: vec![]
+            });
+        }
+    }
 }
 
 fn list_up(file_curr: &mut usize, top_offset: &mut i32) {
@@ -215,7 +225,7 @@ fn list_up(file_curr: &mut usize, top_offset: &mut i32) {
     }
 }
 
-fn list_down(file_curr: &mut usize, top_offset: &mut i32, max_y: &i32, entries: &Vec<Entry>) {
+fn list_down(file_curr: &mut usize, top_offset: &mut i32, max_y: &i32, entries: &Vec<tree::Entry>) {
     if entries.len() > 0 {
         *file_curr = min(*file_curr + 1, entries.len() - 1);
 
@@ -226,36 +236,11 @@ fn list_down(file_curr: &mut usize, top_offset: &mut i32, max_y: &i32, entries: 
     }
 }
 
-fn move_back(ui: &Ui, entries: &mut Vec<Entry>, top_offset: &mut i32, file_curr: &mut usize) {
-        *entries = get_entries(&ui.parent_path.to_string());
+fn move_back(ui: &mut Ui, entries: &mut Vec<tree::Entry>, top_offset: &mut i32, file_curr: &mut usize) {
+        ui.set_entries(&mut *entries); 
         *top_offset = 0;
         *file_curr = 0;
 }
-
-fn get_entries(path: &str) -> Vec<Entry> {
-    let mut entries: Vec<Entry> = Vec::new(); 
-
-    for entry_res in read_dir(path).unwrap() {
-        let entry = entry_res.unwrap();
-        let file_name_buf = entry.file_name();
-        let file_name = file_name_buf.to_str().unwrap();
-
-        if !file_name.starts_with(".") {
-                let curr_path = format!("{}", entry.path().display());
-
-
-                entries.push(Entry {
-                    name: String::from(file_name),
-                    path: curr_path,
-                    is_dir: entry.path().is_dir()
-                });
-        }
-    }
-
-
-    entries
-}
-
 
 fn main() {
     initscr();
@@ -279,12 +264,13 @@ fn main() {
     let mut file_curr: usize = 0;
     let mut select_start: Option<i32> = None;
     let mut top_offset: i32 = 0;
-    let mut entries: Vec<Entry> = get_entries(&ui.curr_path); 
+    let mut entries: Vec<tree::Entry> = Vec::new(); 
+
+    ui.set_entries(&mut entries);
     ui.set_parent_path();
 
     let mut max_x: i32 = 0;
     let mut max_y: i32 = 0;
-
 
     while !quit {
         erase();
@@ -307,7 +293,7 @@ fn main() {
                         pair = HIGHLIGHT_PAIR;
                 }
 
-                let label = format!("{} {}", { if entry.is_dir { "d" } else { "f" } } , &entry.name);
+                let label = format!("{} {}", { if entry.r#type == "dir" { "d" } else { "f" } } , &entry.name);
                 ui.list_item(&label, pair, &((i as i32) - top_offset));
             }
         }
@@ -332,23 +318,23 @@ fn main() {
                     'j' => list_down(&mut file_curr, &mut top_offset, &max_y, &entries),
                     'v' => select_start = Some(file_curr as i32),
                     'h' => {
-                            move_back(&ui, &mut entries, &mut top_offset, &mut file_curr);
                             ui.curr_path = ui.parent_path.to_string();
+                            move_back(&mut ui, &mut entries, &mut top_offset, &mut file_curr);
                             ui.set_parent_path();
                             select_start = None;
                     },
-                    '\n' => if entries.len() != 0 && entries[file_curr].is_dir {
+                    '\n' => if entries.len() != 0 && entries[file_curr].r#type == "dir" {
                             ui.curr_path = entries[file_curr].path.to_string(); 
-                            entries = get_entries(&ui.curr_path);
+                            ui.set_entries(&mut entries);
                             top_offset = 0;
                             file_curr = 0;
                             select_start = None; 
 
                             ui.set_parent_path();
                     }
-                    'l' => if entries.len() != 0 && entries[file_curr].is_dir {
+                    'l' => if entries.len() != 0 && entries[file_curr].r#type == "dir" {
                             ui.curr_path = entries[file_curr].path.to_string(); 
-                            entries = get_entries(&ui.curr_path);
+                            ui.set_entries(&mut entries);
                             top_offset = 0;
                             file_curr = 0;
                             select_start = None;
