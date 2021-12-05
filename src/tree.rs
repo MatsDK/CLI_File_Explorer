@@ -1,12 +1,11 @@
 use std::fs;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Entry {
     pub name: String,
     pub path: String,
     pub r#type: String,
-    pub _children: Vec<Entry>,
 }
 
 #[derive(Serialize, Deserialize)]

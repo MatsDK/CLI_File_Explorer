@@ -4,6 +4,7 @@ use ncurses::*;
 use std::cmp::*;
 use std::fs::*;
 use std::path::Path;
+use serde_json::to_writer;
 
 mod tree;
 
@@ -125,13 +126,13 @@ impl Ui {
                         } else {
                             match File::create(&path) {
                                 Ok(_) => {
-                                    entries.insert(0, tree::Entry {
+                                    let new_entry = tree::Entry {
                                         name: self.input_value.clone(),
-                                        path,
+                                        path: path.clone(),
                                         r#type: String::from("file"),
-                                        _children: Vec::new()
-                                        
-                                    });
+                                    };
+                                    entries.insert(0, new_entry.clone());
+                                    self.add_entry(new_entry, true);
                                     self.command = CommandType::None;
                                 },
                                 Err(err) => self.command = CommandType::Error(err.to_string())
@@ -149,12 +150,13 @@ impl Ui {
 
                         match create_dir(&path) {
                             Ok(_) => {
-                                entries.insert(0, tree::Entry {
+                                let new_entry = tree::Entry {
                                     name: self.input_value.clone(),
-                                    path,
+                                    path: path.clone(),
                                     r#type: String::from("dir"),
-                                    _children: Vec::new()
-                                });
+                                };
+                                entries.insert(0, new_entry.clone());
+                                self.add_entry(new_entry, true);
                                 self.command = CommandType::None;
                             },
                             Err(err) => self.command = CommandType::Error(err.to_string())
@@ -204,15 +206,49 @@ impl Ui {
     fn set_entries(&mut self, entries: &mut Vec<tree::Entry>) {
         *entries = vec![];
 
-        for e in self.tree.root.iter() {
-            entries.push(tree::Entry{
-                name: (*e.name).to_string(),
-                path: (*e.path).to_string(),
-                r#type: (*e.r#type).to_string(),
-                _children: vec![]
-            });
+        if self.curr_path == "/" {
+            for e in self.tree.root.iter() {
+                let mut x: String = "/".to_owned();
+                x.push_str(&*e.name);
+                    
+                if x == *e.path.to_string() {
+                    entries.push(tree::Entry{
+                        name: (*e.name).to_string(),
+                        path: (*e.path).to_string(),
+                        r#type: (*e.r#type).to_string(),
+                    });
+                }
+            }
+        } else {
+            for e in self.tree.root.iter() {
+                let mut x: String = self.curr_path.to_owned();
+                x.push_str("/");
+                x.push_str(&*e.name);
+
+                if x == *e.path.to_string() {
+                    entries.push(tree::Entry{
+                        name: (*e.name).to_string(),
+                        path: (*e.path).to_string(),
+                        r#type: (*e.r#type).to_string(),
+                    });
+                }
+            }
         }
     }
+
+    fn add_entry(&mut self, entry: tree::Entry, update_json: bool) {
+        self.tree.root.insert(0, entry);
+
+        if update_json == true {
+            self.update_json();
+        }
+    }
+
+    fn update_json(&self) {
+            //to_writer_pretty(&File::create("tree.json").unwrap(), &self.tree).unwrap();
+            to_writer(&File::create("tree.json").unwrap(), &self.tree).unwrap();
+    }
+
 }
 
 fn list_up(file_curr: &mut usize, top_offset: &mut i32) {
