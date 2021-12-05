@@ -17,3 +17,4 @@ $ cargo run
 |<kbd>o</kbd>, <kbd>O</kbd>|Create file, folder|
 |<kbd>v</kbd>|Start selection|
 |<kbd>d</kbd>|Delete selected|
+|<kbd>r</kbd>, <kbd>R</kbd>|Reload, hard reload|

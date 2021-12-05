@@ -180,12 +180,16 @@ impl Ui {
                         }
 
                         match *start_select {
-                            None => delete_entry(&entries[*file_curr], &mut self.command),
+                            None => {
+                                delete_entry(&entries[*file_curr], &mut self.command);
+                                self.delete_entry(&entries[*file_curr].path, &entries[*file_curr].r#type == "dir", true);
+                            }
                             start => {
                                 let diff: i32 = start.unwrap() - *file_curr as i32; 
                                 for i in 0..=diff.abs() {
                                     let idx: i32 = i + min(start.unwrap(), *file_curr as i32);
                                     delete_entry(&entries[idx as usize], &mut self.command);
+                                    self.delete_entry(&entries[idx as usize].path, &entries[idx as usize].r#type == "dir", true);
                                 }
                             }
                         }
@@ -238,6 +242,32 @@ impl Ui {
 
     fn add_entry(&mut self, entry: tree::Entry, update_json: bool) {
         self.tree.root.insert(0, entry);
+
+        if update_json == true {
+            self.update_json();
+        }
+    }
+
+    fn delete_entry(&mut self, entry_path: &str, delete_children: bool, update_json: bool) {
+        for (i, e) in self.tree.root.iter().enumerate() {
+            if &*e.path == entry_path {
+                self.tree.root.remove(i);
+                break
+            }
+        }
+
+
+        if delete_children {
+            let mut i = 0;
+
+            while i < self.tree.root.len() {
+                if self.tree.root[i].path.starts_with(entry_path) {
+                    self.tree.root.remove(i);
+                } else {
+                    i += 1;
+                }
+            }
+        }
 
         if update_json == true {
             self.update_json();
@@ -353,6 +383,11 @@ fn main() {
                     'k' => list_up(&mut file_curr, &mut top_offset),
                     'j' => list_down(&mut file_curr, &mut top_offset, &max_y, &entries),
                     'v' => select_start = Some(file_curr as i32),
+                    'r' => ui.set_entries(&mut entries),
+                    'R' => { 
+                            ui.tree = tree::parse_tree();
+                            ui.set_entries(&mut entries);
+                    },
                     'h' => {
                             ui.curr_path = ui.parent_path.to_string();
                             move_back(&mut ui, &mut entries, &mut top_offset, &mut file_curr);
