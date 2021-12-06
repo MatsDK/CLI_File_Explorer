@@ -212,68 +212,15 @@ impl Ui {
         *entries = vec![];
 
         if self.curr_path == "/" {
-            for e in self.tree._links.iter() {
-                let mut x: String = self.curr_path.to_owned();
-                x.push_str(&*e.name);
-
-                if x == *e.path.to_string() {
-                    entries.push(tree::Entry{
-                        name: (*e.name).to_string(),
-                        path: (*e.path).to_string(),
-                        r#type: format!("{}l", (*e.r#type).to_string()),
-                    });
-                }
-            }
-
-            for e in self.tree.root.iter() {
-                let mut x: String = "/".to_owned();
-                x.push_str(&*e.name);
-                    
-                if x == *e.path.to_string() {
-                    entries.push(tree::Entry{
-                        name: (*e.name).to_string(),
-                        path: (*e.path).to_string(),
-                        r#type: (*e.r#type).to_string(),
-                    });
-                }
-            }
+            self.get_entries_with_path(entries, &self.curr_path, "");
         } else {
-            let mut flag = false;
-            for e in self.tree._links.iter() {
-                let mut x: String = self.curr_path.to_owned();
-                x.push_str("/");
-                x.push_str(&*e.name);
-
-                if x == *e.path.to_string() {
-                    entries.push(tree::Entry{
-                        name: (*e.name).to_string(),
-                        path: (*e.path).to_string(),
-                        r#type: format!("{}l", (*e.r#type).to_string()),
-                    });
-                }
-            }
-
-            for e in self.tree.root.iter() {
-                let mut x: String = self.curr_path.to_owned();
-                x.push_str("/");
-                x.push_str(&*e.name);
-
-                if x == *e.path.to_string() {
-                    entries.push(tree::Entry{
-                        name: (*e.name).to_string(),
-                        path: (*e.path).to_string(),
-                        r#type: (*e.r#type).to_string(),
-                    });
-                }
-
-                if e.path == self.curr_path {
-                    flag = true;
-                }
-
-            }
+            let flag = self.get_entries_with_path(entries, &self.curr_path, "/");
 
             if flag == false {
+                *entries = vec![];
                 let mut real_path = "";
+
+                // implement algorithm to find path of sted links 
                 for e in self.tree._links.iter() {
                     if  e.path == self.curr_path {
                         real_path = &e.link_path;
@@ -281,21 +228,52 @@ impl Ui {
                     }
                 }
 
-                for e in self.tree.root.iter() {
-                    let mut x: String = real_path.to_owned();
-                    x.push_str("/");
-                    x.push_str(&*e.name);
-
-                    if x == *e.path.to_string() {
-                        entries.push(tree::Entry{
-                            name: (*e.name).to_string(),
-                            path: (*e.path).to_string(),
-                            r#type: (*e.r#type).to_string(),
-                        });
-                    }
+                if real_path == "" {
+                    panic!("Link path not found");
                 }
+
+                self.get_entries_with_path(entries, real_path, "/");
             }
         }
+    }
+
+    fn get_entries_with_path(&self, entries: &mut Vec<tree::Entry>, path: &str, join: &str) -> bool {
+            let mut flag = false;
+
+            for e in self.tree._links.iter() {
+                let mut x: String = path.to_owned();
+                x.push_str(join);
+                x.push_str(&*e.name);
+
+                if x == *e.path.to_string() {
+                    entries.push(tree::Entry{
+                        name: (*e.name).to_string(),
+                        path: (*e.path).to_string(),
+                        r#type: format!("{}l", (*e.r#type).to_string()),
+                    });
+                }
+            }
+
+            for e in self.tree.root.iter() {
+                let mut x: String = path.to_owned();
+                x.push_str(join);
+                x.push_str(&*e.name);
+
+                if x == *e.path.to_string() {
+                    entries.push(tree::Entry{
+                        name: (*e.name).to_string(),
+                        path: (*e.path).to_string(),
+                        r#type: (*e.r#type).to_string(),
+                    });
+                }
+
+                if e.path == path {
+                    flag = true;
+                }
+
+            }
+
+            flag
     }
 
     fn add_entry(&mut self, entry: tree::Entry, update_json: bool) {
