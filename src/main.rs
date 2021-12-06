@@ -129,7 +129,7 @@ impl Ui {
                                     let new_entry = tree::Entry {
                                         name: self.input_value.clone(),
                                         path: path.clone(),
-                                        r#type: String::from("file"),
+                                        r#type: String::from("f"),
                                     };
                                     entries.insert(0, new_entry.clone());
                                     self.add_entry(new_entry, true);
@@ -208,9 +208,70 @@ impl Ui {
         }
     }
 
+    fn resolve_path(&mut self, path: &str) -> (String, String) {
+        if path == "/" {
+            return (path.to_string(), "".to_string());
+        } else {
+            let mut found_flag = false;
+
+            for e in self.tree.root.iter() {
+                if e.path == path {
+                    found_flag = true;
+                }
+            }
+
+            if found_flag {
+                return (path.to_string(), "/".to_string());
+            }
+
+            let mut split: Vec<&str> = path.split("/").collect();
+            let mut real_path = "".to_string();
+
+            split.remove(0);
+            while split.len() != 0 {
+                let mut found = false;
+                let new_path = format!("{}/{}", real_path, split[0]);
+                split.remove(0);
+
+                for e in self.tree.root.iter() {
+                    if  e.path == new_path {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if found {
+                    real_path = new_path;
+                } else {
+                    for l in self.tree._links.iter() {
+                        if  l.path == new_path {
+                            real_path = String::from(&l.link_path); 
+                            found = true;
+                            break;
+                        }
+
+                    }
+
+                    if !found {
+                        panic!("nout found {}", real_path);
+                    }
+                }
+
+            }
+
+            return (real_path, "/".to_string());
+        }
+
+    }
+
     fn set_entries(&mut self, entries: &mut Vec<tree::Entry>) {
         *entries = vec![];
+        
+        let (path, prefix) = self.resolve_path(&String::from(&self.curr_path));
+        self.get_entries_with_path(entries, &path, &prefix);
 
+
+        /*
         if self.curr_path == "/" {
             self.get_entries_with_path(entries, &self.curr_path, "");
         } else {
@@ -220,7 +281,7 @@ impl Ui {
                 *entries = vec![];
                 let mut real_path = "";
 
-                // implement algorithm to find path of sted links 
+                // implement algorithm to find path of nested links 
                 for e in self.tree._links.iter() {
                     if  e.path == self.curr_path {
                         real_path = &e.link_path;
@@ -228,13 +289,14 @@ impl Ui {
                     }
                 }
 
-                if real_path == "" {
-                    panic!("Link path not found");
-                }
+                //if real_path == "" {
+                    //panic!("Link path not found");
+                //}
 
                 self.get_entries_with_path(entries, real_path, "/");
             }
         }
+        */
     }
 
     fn get_entries_with_path(&self, entries: &mut Vec<tree::Entry>, path: &str, join: &str) -> bool {
@@ -270,7 +332,6 @@ impl Ui {
                 if e.path == path {
                     flag = true;
                 }
-
             }
 
             flag
@@ -430,7 +491,8 @@ fn main() {
                             select_start = None;
                     },
                     '\n' => if entries.len() != 0 && (entries[file_curr].r#type == "d" || entries[file_curr].r#type == "dl")  {
-                            ui.curr_path = entries[file_curr].path.to_string(); 
+                            ui.curr_path = format!("{}{}{}", ui.curr_path, 
+                                                   { if  ui.curr_path == "/" { "" } else { "/" } }, entries[file_curr].name.to_string()); 
                             ui.set_entries(&mut entries);
                             top_offset = 0;
                             file_curr = 0;
@@ -439,7 +501,8 @@ fn main() {
                             ui.set_parent_path();
                     }
                     'l' => if entries.len() != 0 && (entries[file_curr].r#type == "d" || entries[file_curr].r#type == "dl")  {
-                            ui.curr_path = entries[file_curr].path.to_string(); 
+                            ui.curr_path = format!("{}{}{}", ui.curr_path, 
+                                                   { if  ui.curr_path == "/" { "" } else { "/" } }, entries[file_curr].name.to_string()); 
                             ui.set_entries(&mut entries);
                             top_offset = 0;
                             file_curr = 0;
