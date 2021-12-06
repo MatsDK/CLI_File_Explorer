@@ -153,7 +153,7 @@ impl Ui {
                                 let new_entry = tree::Entry {
                                     name: self.input_value.clone(),
                                     path: path.clone(),
-                                    r#type: String::from("dir"),
+                                    r#type: String::from("d"),
                                 };
                                 entries.insert(0, new_entry.clone());
                                 self.add_entry(new_entry, true);
@@ -164,7 +164,7 @@ impl Ui {
                     },
                     CommandType::Delete => {
                         fn delete_entry(entry: &tree::Entry, command: &mut CommandType) {
-                            if &entry.r#type == "dir" {
+                            if &entry.r#type == "d" {
                                 match remove_dir_all(&entry.path) {
                                     Ok(_) => {
                                     },
@@ -182,18 +182,19 @@ impl Ui {
                         match *start_select {
                             None => {
                                 delete_entry(&entries[*file_curr], &mut self.command);
-                                self.delete_entry(&entries[*file_curr].path, &entries[*file_curr].r#type == "dir", true);
+                                self.delete_entry(&entries[*file_curr].path, &entries[*file_curr].r#type == "d", true);
                             }
                             start => {
                                 let diff: i32 = start.unwrap() - *file_curr as i32; 
                                 for i in 0..=diff.abs() {
                                     let idx: i32 = i + min(start.unwrap(), *file_curr as i32);
                                     delete_entry(&entries[idx as usize], &mut self.command);
-                                    self.delete_entry(&entries[idx as usize].path, &entries[idx as usize].r#type == "dir", true);
+                                    self.delete_entry(&entries[idx as usize].path, &entries[idx as usize].r#type == "d", true);
                                 }
                             }
                         }
 
+                        self.set_entries(entries);
                         self.command = CommandType::None;
 
                     },
@@ -211,6 +212,19 @@ impl Ui {
         *entries = vec![];
 
         if self.curr_path == "/" {
+            for e in self.tree._links.iter() {
+                let mut x: String = self.curr_path.to_owned();
+                x.push_str(&*e.name);
+
+                if x == *e.path.to_string() {
+                    entries.push(tree::Entry{
+                        name: (*e.name).to_string(),
+                        path: (*e.path).to_string(),
+                        r#type: format!("{}l", (*e.r#type).to_string()),
+                    });
+                }
+            }
+
             for e in self.tree.root.iter() {
                 let mut x: String = "/".to_owned();
                 x.push_str(&*e.name);
@@ -224,6 +238,21 @@ impl Ui {
                 }
             }
         } else {
+            let mut flag = false;
+            for e in self.tree._links.iter() {
+                let mut x: String = self.curr_path.to_owned();
+                x.push_str("/");
+                x.push_str(&*e.name);
+
+                if x == *e.path.to_string() {
+                    entries.push(tree::Entry{
+                        name: (*e.name).to_string(),
+                        path: (*e.path).to_string(),
+                        r#type: format!("{}l", (*e.r#type).to_string()),
+                    });
+                }
+            }
+
             for e in self.tree.root.iter() {
                 let mut x: String = self.curr_path.to_owned();
                 x.push_str("/");
@@ -236,6 +265,35 @@ impl Ui {
                         r#type: (*e.r#type).to_string(),
                     });
                 }
+
+                if e.path == self.curr_path {
+                    flag = true;
+                }
+
+            }
+
+            if flag == false {
+                let mut real_path = "";
+                for e in self.tree._links.iter() {
+                    if  e.path == self.curr_path {
+                        real_path = &e.link_path;
+                        break
+                    }
+                }
+
+                for e in self.tree.root.iter() {
+                    let mut x: String = real_path.to_owned();
+                    x.push_str("/");
+                    x.push_str(&*e.name);
+
+                    if x == *e.path.to_string() {
+                        entries.push(tree::Entry{
+                            name: (*e.name).to_string(),
+                            path: (*e.path).to_string(),
+                            r#type: (*e.r#type).to_string(),
+                        });
+                    }
+                }
             }
         }
     }
@@ -243,19 +301,18 @@ impl Ui {
     fn add_entry(&mut self, entry: tree::Entry, update_json: bool) {
         self.tree.root.insert(0, entry);
 
-        if update_json == true {
+        if update_json {
             self.update_json();
         }
     }
 
     fn delete_entry(&mut self, entry_path: &str, delete_children: bool, update_json: bool) {
         for (i, e) in self.tree.root.iter().enumerate() {
-            if &*e.path == entry_path {
+            if e.path == entry_path {
                 self.tree.root.remove(i);
                 break
             }
         }
-
 
         if delete_children {
             let mut i = 0;
@@ -269,7 +326,7 @@ impl Ui {
             }
         }
 
-        if update_json == true {
+        if update_json {
             self.update_json();
         }
     }
@@ -359,7 +416,7 @@ fn main() {
                         pair = HIGHLIGHT_PAIR;
                 }
 
-                let label = format!("{} {}", { if entry.r#type == "dir" { "d" } else { "f" } } , &entry.name);
+                let label = format!("{} {}", entry.r#type, &entry.name);
                 ui.list_item(&label, pair, &((i as i32) - top_offset));
             }
         }
@@ -394,7 +451,7 @@ fn main() {
                             ui.set_parent_path();
                             select_start = None;
                     },
-                    '\n' => if entries.len() != 0 && entries[file_curr].r#type == "dir" {
+                    '\n' => if entries.len() != 0 && (entries[file_curr].r#type == "d" || entries[file_curr].r#type == "dl")  {
                             ui.curr_path = entries[file_curr].path.to_string(); 
                             ui.set_entries(&mut entries);
                             top_offset = 0;
@@ -403,7 +460,7 @@ fn main() {
 
                             ui.set_parent_path();
                     }
-                    'l' => if entries.len() != 0 && entries[file_curr].r#type == "dir" {
+                    'l' => if entries.len() != 0 && (entries[file_curr].r#type == "d" || entries[file_curr].r#type == "dl")  {
                             ui.curr_path = entries[file_curr].path.to_string(); 
                             ui.set_entries(&mut entries);
                             top_offset = 0;

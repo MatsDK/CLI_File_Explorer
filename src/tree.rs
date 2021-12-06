@@ -9,8 +9,17 @@ pub struct Entry {
 }
 
 #[derive(Serialize, Deserialize)]
+pub struct Link {
+    pub name: String,
+    pub path: String,
+    pub link_path: String,
+    pub r#type: String,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct Tree {
     pub root: Vec<Entry>,
+    pub _links: Vec<Link>,
 }
 
 pub fn parse_tree() -> Tree {
