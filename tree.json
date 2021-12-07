@@ -1,1 +1,2 @@
 {"root":[{"name":"file","path":"/home/mats/folder/folder_nested/file","type":"f"},{"name":"folder_nested","path":"/home/mats/folder/folder_nested","type":"d"},{"name":"file.txt","path":"/home/mats/folder/file.txt","type":"f"},{"name":"folder","path":"/home/mats/folder","type":"d"},{"name":"bob11","path":"/home/bob11","type":"d"},{"name":"mats","path":"/home/mats","type":"d"},{"name":"home","path":"/home","type":"d"}],"_links":[{"name":"folder_link","path":"/home/bob11/folder_link","link_path":"/home/mats/folder","type":"d"}]}
+

@@ -116,7 +116,7 @@ impl Ui {
                             if self.curr_path == "/" { 
                                 format!("/{}", self.input_value) 
                             } else { 
-                                format!("{}/{}", self.curr_path, self.input_value) 
+                                format!("{}/{}", self.resolve_path(&String::from(&self.curr_path)).0, self.input_value) 
                             }  
                         };
 
@@ -144,7 +144,7 @@ impl Ui {
                             if self.curr_path == "/" { 
                                 format!("/{}", self.input_value) 
                             } else { 
-                                format!("{}/{}", self.curr_path, self.input_value) 
+                                format!("{}/{}", self.resolve_path(&String::from(&self.curr_path)).0, self.input_value) 
                             }  
                         };
 
@@ -170,7 +170,7 @@ impl Ui {
                                     },
                                     Err(err) => *command = CommandType::Error(err.to_string())
                                 }
-                            } else {
+                            } else if &entry.r#type == "f" {
                                 match remove_file(&entry.path) {
                                     Ok(_) => {
                                     },
@@ -249,7 +249,6 @@ impl Ui {
                             found = true;
                             break;
                         }
-
                     }
 
                     if !found {
@@ -269,39 +268,9 @@ impl Ui {
         
         let (path, prefix) = self.resolve_path(&String::from(&self.curr_path));
         self.get_entries_with_path(entries, &path, &prefix);
-
-
-        /*
-        if self.curr_path == "/" {
-            self.get_entries_with_path(entries, &self.curr_path, "");
-        } else {
-            let flag = self.get_entries_with_path(entries, &self.curr_path, "/");
-
-            if flag == false {
-                *entries = vec![];
-                let mut real_path = "";
-
-                // implement algorithm to find path of nested links 
-                for e in self.tree._links.iter() {
-                    if  e.path == self.curr_path {
-                        real_path = &e.link_path;
-                        break
-                    }
-                }
-
-                //if real_path == "" {
-                    //panic!("Link path not found");
-                //}
-
-                self.get_entries_with_path(entries, real_path, "/");
-            }
-        }
-        */
     }
 
-    fn get_entries_with_path(&self, entries: &mut Vec<tree::Entry>, path: &str, join: &str) -> bool {
-            let mut flag = false;
-
+    fn get_entries_with_path(&self, entries: &mut Vec<tree::Entry>, path: &str, join: &str) {
             for e in self.tree._links.iter() {
                 let mut x: String = path.to_owned();
                 x.push_str(join);
@@ -328,13 +297,7 @@ impl Ui {
                         r#type: (*e.r#type).to_string(),
                     });
                 }
-
-                if e.path == path {
-                    flag = true;
-                }
             }
-
-            flag
     }
 
     fn add_entry(&mut self, entry: tree::Entry, update_json: bool) {
@@ -346,10 +309,30 @@ impl Ui {
     }
 
     fn delete_entry(&mut self, entry_path: &str, delete_children: bool, update_json: bool) {
-        for (i, e) in self.tree.root.iter().enumerate() {
-            if e.path == entry_path {
-                self.tree.root.remove(i);
-                break
+
+        let mut found_flag = false;
+
+        let mut i = 0;
+
+        while i < self.tree._links.len() {
+            if self.tree._links[i].link_path.starts_with(&format!("{}/", entry_path)) {
+                self.tree._links.remove(i);
+            } else if self.tree._links[i].link_path == entry_path {
+                self.tree._links.remove(i);
+            } else if self.tree._links[i].path == entry_path {
+                self.tree._links.remove(i);
+                found_flag = true;
+            } else {
+                i += 1;
+            }
+        }
+
+        if !found_flag {
+            for (i, e) in self.tree.root.iter().enumerate() {
+                if e.path == entry_path {
+                    self.tree.root.remove(i);
+                    break
+                }
             }
         }
 
@@ -357,7 +340,7 @@ impl Ui {
             let mut i = 0;
 
             while i < self.tree.root.len() {
-                if self.tree.root[i].path.starts_with(entry_path) {
+                if self.tree.root[i].path.starts_with(&format!("{}/", entry_path)) {
                     self.tree.root.remove(i);
                 } else {
                     i += 1;

@@ -8,7 +8,7 @@ pub struct Entry {
     pub r#type: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Link {
     pub name: String,
     pub path: String,
