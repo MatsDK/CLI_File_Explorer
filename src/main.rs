@@ -15,6 +15,7 @@ enum CommandType {
     NewFile,
     NewDir,
     Delete,
+    NewLink,
     Error(String),
     None,
 }
@@ -49,6 +50,16 @@ impl Ui {
 
                 let cursor = self.input_cursor as usize;
                 mv(height - 1, 20 + self.input_cursor);
+                attron(COLOR_PAIR(HIGHLIGHT_PAIR));
+                addstr(self.input_value.get(cursor..=cursor).unwrap_or(" "));
+                attroff(COLOR_PAIR(HIGHLIGHT_PAIR));
+            },
+            CommandType::NewLink => {
+                let str = format!("New link path: {}", self.input_value);
+                addstr(&str as &str);
+
+                let cursor = self.input_cursor as usize;
+                mv(height - 1, 18 + self.input_cursor);
                 attron(COLOR_PAIR(HIGHLIGHT_PAIR));
                 addstr(self.input_value.get(cursor..=cursor).unwrap_or(" "));
                 attroff(COLOR_PAIR(HIGHLIGHT_PAIR));
@@ -162,6 +173,40 @@ impl Ui {
                             Err(err) => self.command = CommandType::Error(err.to_string())
                         }
                     },
+                    CommandType::NewLink => {
+                        let path = Path::new(&self.input_value);
+                        let mut found: Option<&tree::Entry> = None;
+
+                        for e in self.tree.root.iter() {
+                            if e.path == path.display().to_string() {
+                                found = Some(e);
+                                break
+                            }
+                        }
+
+                        if found.is_none() {
+                            panic!("Path new found");
+                        };
+
+                        
+                        entries.insert(0, tree::Entry {
+                            r#type: format!("{}", found.unwrap().r#type),
+                            //path:&Path::new(&format!("{}/{}", self.curr_path, path.file_name().unwrap().to_str().unwrap())).display().to_string(), 
+                            name: String::from(path.file_name().unwrap().to_str().unwrap()),
+                            path: path.display().to_string(), 
+                        });
+
+                        self.add_link(tree::Link {
+                            path: Path::new(&format!("{}/{}", self.curr_path, path.file_name().unwrap().to_str().unwrap())).display().to_string(), 
+                            r#type: format!("{}", found.unwrap().r#type),
+                            name: String::from(path.file_name().unwrap().to_str().unwrap()),
+                            //path: _path.display().to_string(), 
+                            link_path: path.display().to_string(), 
+
+                        }, true);
+
+                        self.command = CommandType::None;
+                    },
                     CommandType::Delete => {
                         fn delete_entry(entry: &tree::Entry, command: &mut CommandType) {
                             if &entry.r#type == "d" {
@@ -252,7 +297,7 @@ impl Ui {
                     }
 
                     if !found {
-                        panic!("nout found {}", real_path);
+                        panic!("not found {}", real_path);
                     }
                 }
 
@@ -308,6 +353,14 @@ impl Ui {
         }
     }
 
+    fn add_link(&mut self, link: tree::Link, update_json: bool) {
+        self.tree._links.insert(0, link);
+
+        if update_json {
+            self.update_json();
+        }
+    }
+
     fn delete_entry(&mut self, entry_path: &str, delete_children: bool, update_json: bool) {
 
         let mut found_flag = false;
@@ -315,9 +368,7 @@ impl Ui {
         let mut i = 0;
 
         while i < self.tree._links.len() {
-            if self.tree._links[i].link_path.starts_with(&format!("{}/", entry_path)) {
-                self.tree._links.remove(i);
-            } else if self.tree._links[i].link_path == entry_path {
+            if self.tree._links[i].link_path.starts_with(&format!("{}/", entry_path)) || self.tree._links[i].link_path == entry_path {
                 self.tree._links.remove(i);
             } else if self.tree._links[i].path == entry_path {
                 self.tree._links.remove(i);
@@ -459,6 +510,7 @@ fn main() {
                     'd' => if entries.len() != 0 { ui.command = CommandType::Delete },
                     'o' => ui.command = CommandType::NewFile,
                     'O' => ui.command = CommandType::NewDir,
+                    'p' => ui.command = CommandType::NewLink,
                     'k' => list_up(&mut file_curr, &mut top_offset),
                     'j' => list_down(&mut file_curr, &mut top_offset, &max_y, &entries),
                     'v' => select_start = Some(file_curr as i32),

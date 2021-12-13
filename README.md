@@ -18,3 +18,4 @@ $ cargo run
 |<kbd>v</kbd>|Start selection|
 |<kbd>d</kbd>|Delete selected|
 |<kbd>r</kbd>, <kbd>R</kbd>|Reload, hard reload|
+|<kbd>p</kbd>|Create link|
